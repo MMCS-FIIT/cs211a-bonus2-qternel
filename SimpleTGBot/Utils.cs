@@ -9,32 +9,64 @@ using Telegram.Bot.Types.ReplyMarkups;
 using Telegram.Bot.Types;
 using Telegram.Bot;
 using System.Text.RegularExpressions;
+using System.Net;
+
 namespace Utils
 {
     class Utils
     {
-
-        public static async void GetData(string handle)
+        public static async Task<String> GetData(string handle)
         {
 
-            await Task.Run(() =>
+            try
             {
                 string url = $"https://codeforces.com/api/user.info?handles={handle}";
                 var client = new RestClient(url);
                 var request = new RestRequest();
 
-                var response = client.Get(request);
+                var response = await client.GetAsync(request);
 
                 Console.WriteLine(response.Content.ToString());
-                string userFile = $"userData_{handle}.txt";
-                if (System.IO.File.Exists(userFile))
-                    return;
 
-                System.IO.File.WriteAllTextAsync(userFile, response.Content.ToString());
 
-            });
+                return response.Content.ToString();
+            }
+            catch (Exception e)
+            {
+                return "Failed to find user";
+            }
+
 
         }
 
+
+        public static async Task<String> GetLastActiveBlogId()
+        {
+
+            try
+            {
+
+                string url = "https://codeforces.com/api/recentActions?maxCount=1";
+                var client = new RestClient(url);
+                var request = new RestRequest();
+
+                var response = await client.GetAsync(request);
+
+                return Regex.Match(response.Content.ToString(), "\\\"id\\\":([0-9]+)").Groups[1].Value;
+            }
+            catch (Exception e)
+            {
+                return "Failed";
+            }
+
+
+        }
+
+
+
     }
+
+
+
+
 }

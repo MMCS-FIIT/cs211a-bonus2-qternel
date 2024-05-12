@@ -1,0 +1,9 @@
+It's a simple telegram bot that gets information from codeforces.com
+To test /getUserInformation you can use these handles: 
+qternel
+tourist
+MikeMirzayanov
+
+!!!
+To use in a group chat just add bot in a group chat and reply to it's messages
+!!!

@@ -6,11 +6,17 @@ using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 using Utils;
+using System.Text.RegularExpressions;
+using System.Net;
+
+
 public class TelegramBot
+
 {
     // Токен TG-бота. Можно получить у @BotFather
-    private const string BotToken = "7100637035:AAHuRxdCBzQOuZXASiS24Mb7dMH61InBdBo";
-
+    private const string BotToken = "7032654041:AAFB7ywqjlEdQFd7tvWkgwXljm4l9AHUaM4";
+    private States currentState;
+    private HashSet<string> commands = new HashSet<string>() { "/start", "/about", "/getUserInformation", "/getRandomContest", "/getLatestActiveBlog" };
     /// <summary>
     /// Инициализирует и обеспечивает работу бота до нажатия клавиши Esc
     /// </summary>
@@ -19,7 +25,7 @@ public class TelegramBot
         // Если вам нужно хранить какие-то данные во время работы бота (массив информации, логи бота,
         // историю сообщений для каждого пользователя), то это всё надо инициализировать в этом методе.
         // TODO: Инициализация необходимых полей
-
+        currentState = States.WaitingForCommand;
 
         // Инициализируем наш клиент, передавая ему токен.
         var botClient = new TelegramBotClient(BotToken);
@@ -64,11 +70,13 @@ public class TelegramBot
 
         ReplyKeyboardMarkup replyKeyboardMarkup = new(new[]
         {
-        new KeyboardButton[] { "123" },
+        new KeyboardButton[] { "/start","/about", },
+        new KeyboardButton[] { "/getUserInformation", "/getRandomContest","/getLatestActiveBlog" },
          })
         {
             ResizeKeyboard = true
         };
+
 
 
         var message = update.Message;
@@ -76,6 +84,7 @@ public class TelegramBot
         {
             return;
         }
+
 
 
         //  Utils.Utils.PrintData(message.Text);
@@ -88,26 +97,151 @@ public class TelegramBot
 
         long chatId = message.Chat.Id;
 
-        if (message.Type == MessageType.Text)
+
+        if (currentState == States.WaitingForHandle)
         {
-            var messageText = message.Text;
-
-            if (messageText.StartsWith("/GetUserInformation"))
+            if (message.Text.StartsWith("/"))
             {
+                await botClient.SendTextMessageAsync(
+               chatId: chatId,
+               text: "It's a command, not a handle😡😡😡😡🤬🤬🤬",
+               replyMarkup: replyKeyboardMarkup,
+               cancellationToken: cancellationToken);
 
-                if (messageText.Split().Length == 1)
-                    return;
 
-                Utils.GetData(messageText.Split()[1]);
+                if (!commands.Contains(message.Text))
+                {
+                    await botClient.SendTextMessageAsync(
+              chatId: chatId,
+              text: "And I don't even know this command🥱🥱🥱",
+              replyMarkup: replyKeyboardMarkup,
+              cancellationToken: cancellationToken);
+                    currentState = States.WaitingForCommand;
+                }
 
-
-                /*await Utils.GetUserInformation(botClient, chatId, replyKeyboardMarkup, update, cancellationToken);*/
+                currentState = States.WaitingForCommand;
+                return;
             }
 
+            string info = Utils.GetData(message.Text).Result;
+
+            if (info == "Failed to find user")
+            {
+                await botClient.SendTextMessageAsync(
+              chatId: chatId,
+              text: "Failed to find user",
+              replyMarkup: replyKeyboardMarkup,
+              cancellationToken: cancellationToken);
+                currentState = States.WaitingForCommand;
+                return;
+            }
+
+            string handle = "Handle: " + Regex.Match(info, "\\\"handle\\\":\\\"(.+?)\\\"").Groups[1].Value + "\n";
+            string firstName;
+            if (Regex.Match(info, "\\\"firstName\\\":\\\"(.+?)\\\"").Groups[1].Value != "")
+            {
+                firstName = "First name: " + Regex.Match(info, "\\\"firstName\\\":\\\"(.+?)\\\"").Groups[1].Value + "\n";
+            }
+            else
+            {
+                firstName = "First name: Blank\n";
+            }
+
+            string lastName;
+            if (Regex.Match(info, "\\\"lastName\\\":\\\"(.+?)\\\"").Groups[1].Value != "")
+            {
+                lastName = "Last name: " + Regex.Match(info, "\\\"lastName\\\":\\\"(.+?)\\\"").Groups[1].Value + "\n";
+            }
+            else
+            {
+                lastName = "Last name: Blank\n";
+            }
+
+            string rating = "Rating: " + Regex.Match(info, "\\\"rating\\\":([0-9]+)").Groups[1].Value + "\n";
+            string maxRating = "Max. rating: " + Regex.Match(info, "\\\"maxRating\\\":([0-9]+)").Groups[1].Value + "\n";
+            string friendOf = "Friend of " + Regex.Match(info, "\\\"friendOfCount\\\":([0-9]+)").Groups[1].Value + " users\n";
+            string profileUrl = "Profile url: " + $"https://codeforces.com/profile/{Regex.Match(info, "\\\"handle\\\":\\\"(.+?)\\\"").Groups[1].Value}" + "\n";
+            string pictureUrl = Regex.Match(info, "\\\"titlePhoto\\\":\\\"(.+?)\\\"").Groups[1].Value + "\n";
+
+            string toSend = handle + profileUrl + firstName + lastName + rating + maxRating + friendOf;
+
+            await botClient.SendPhotoAsync(
+                        chatId: chatId,
+                        photo: new InputFileUrl(pictureUrl),
+                        caption: toSend,
+                        parseMode: ParseMode.Html,
+                        cancellationToken: cancellationToken);
+
+            currentState = States.WaitingForCommand;
+            return;
+        }
+
+
+
+        var messageText = message.Text;
+        if (messageText is null)
+            return;
+        if (messageText.CompareTo("/start") == 0)
+        {
+
+            await botClient.SendTextMessageAsync(
+                 chatId: chatId,
+                 text: "Welcome!\nPossible commands:\n/start\n/about\n/getUserInformation\n/getRandomContest\n/getLatestActiveBlog",
+                 replyMarkup: replyKeyboardMarkup,
+                 cancellationToken: cancellationToken);
+        }
+        else if (messageText.CompareTo("/getUserInformation") == 0)
+        {
+            currentState = States.WaitingForHandle;
+            await botClient.SendTextMessageAsync(
+     chatId: chatId,
+     text: "Enter your Codeforces handle",
+     replyMarkup: replyKeyboardMarkup,
+     cancellationToken: cancellationToken);
 
         }
-    }
+        else if (messageText.CompareTo("/getRandomContest") == 0)
+        {
+            Random r = new Random();
 
+
+            await botClient.SendTextMessageAsync(
+                 chatId: chatId,
+                 text: $"https://codeforces.com/contest/{r.Next(1, 1971)}",
+                 replyMarkup: replyKeyboardMarkup,
+                 cancellationToken: cancellationToken);
+        }
+        else if (messageText.CompareTo("/getLatestActiveBlog") == 0)
+        {
+
+            string res = Utils.GetLastActiveBlogId().Result;
+
+
+            await botClient.SendTextMessageAsync(
+                 chatId: chatId,
+                 text: res != "Failed" ? $"https://codeforces.com/blog/entry/{res}" : "Failed",
+                 replyMarkup: replyKeyboardMarkup,
+                 cancellationToken: cancellationToken);
+        }
+        else if (messageText.CompareTo("/about") == 0)
+        {
+            await botClient.SendTextMessageAsync(
+                 chatId: chatId,
+                 text: System.IO.File.ReadAllTextAsync("about.txt").Result,
+                 replyMarkup: replyKeyboardMarkup,
+                 cancellationToken: cancellationToken);
+
+        }
+        else
+        {
+            await botClient.SendTextMessageAsync(
+               chatId: chatId,
+               text: "I don't understand the command\nPossible commands:\nstart\nabout\ngetUserInformation\ngetRandomContest\ngetLatestActiveBlog",
+               replyMarkup: replyKeyboardMarkup,
+               cancellationToken: cancellationToken);
+        }
+
+    }
 
     /// <summary>
     /// Обработчик исключений, возникших при работе бота
